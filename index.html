@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Метеостанция</title>
+<style>
+:root{--card:rgba(255,255,255,.055);--bd:rgba(255,255,255,.1);--tx:#e8ecff;--mut:#8b94b8}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--tx);background:#0b1020;min-height:100vh;
+background-image:radial-gradient(900px 500px at 8% -10%,#25316b66,transparent),radial-gradient(800px 500px at 100% 5%,#6b25573d,transparent)}
+header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;flex-wrap:wrap;gap:10px;max-width:1250px;margin:auto}
+h1{margin:0;font-size:22px;letter-spacing:.3px}
+h2{margin:30px 0 12px;font-size:16px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.sub{color:var(--mut);font-size:13px}
+.chip{padding:5px 12px;border-radius:99px;font-size:12px;background:#10b98126;color:#34d399;border:1px solid #10b98155;margin-right:8px}
+.chip.off{background:#ef444426;color:#f87171;border-color:#ef444455}
+.btn{background:var(--card);border:1px solid var(--bd);color:var(--tx);padding:7px 13px;border-radius:10px;cursor:pointer;font-size:13px}
+.btn:hover,.btn.on{background:#ffffff22}
+main{max-width:1250px;margin:auto;padding:0 18px 40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px 18px;backdrop-filter:blur(10px);position:relative;overflow:hidden}
+.card h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);font-weight:600}
+.big{font-size:54px;font-weight:700;line-height:1}
+.big small{font-size:20px;color:var(--mut);margin-left:4px;font-weight:500}
+.card b{color:#fff}
+.ringwrap{position:relative;width:130px;height:130px}
+.ring{width:130px;height:130px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:9;stroke-linecap:round}
+.ring .bg{stroke:#ffffff14}
+.ring .fg{stroke:#4cc9f0;stroke-dasharray:251.3;stroke-dashoffset:251.3;transition:stroke-dashoffset 1s}
+.ringtxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700}
+.ringtxt small{font-size:14px;color:var(--mut)}
+.row{display:flex;gap:16px;align-items:center;justify-content:space-between}
+#rotor{transform-origin:50px 50px;animation:spin 1s linear infinite;animation-play-state:paused}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bar{height:10px;border-radius:9px;background:linear-gradient(90deg,#34d399 0,#34d399 18%,#fbbf24 18%,#fbbf24 70%,#f87171 70%);position:relative;margin:14px 0 8px}
+.bar i{position:absolute;top:-4px;width:4px;height:18px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff;left:0;transition:left .8s}
+.hint{font-size:12px;color:var(--mut)}
+canvas{width:100%;height:210px;display:block;touch-action:pan-y}
+.tip{font-size:12px;color:var(--mut);min-height:16px;margin-top:4px}
+.leg span{font-size:12px;margin-right:12px;color:var(--mut)}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}
+@media(max-width:850px){.two{grid-template-columns:1fr}}
+#map,#windy{height:380px;border-radius:12px;background:#111833;width:100%;border:0}
+#windy{display:none}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:7px 4px;border-bottom:1px solid #ffffff12;text-align:right}
+td:first-child,th:first-child{text-align:left;color:var(--mut)}
+th{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
+.pos{color:#fbbf24}.ok{color:#34d399}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
+.set label{font-size:12px;color:var(--mut);display:block}
+.set input{width:100%;background:#0006;border:1px solid var(--bd);border-radius:8px;color:#fff;padding:7px}
+.pin{width:18px;height:18px;border-radius:50%;background:#ff7a59;border:3px solid #fff;box-shadow:0 0 0 0 #ff7a59aa;animation:pl 2s infinite}
+@keyframes pl{70%{box-shadow:0 0 0 18px #ff7a5900}100%{box-shadow:0 0 0 0 #ff7a5900}}
+.leaflet-tooltip{background:#0b1020e6;color:#fff;border:1px solid #ffffff33}
+#gear,#setp{display:none!important}
+</style></head><body>
+<header>
+ <div><h1>🌦 <span id="name">Метеостанция</span></h1><div class="sub" id="clock"></div></div>
+ <div><span id="st" class="chip off">нет связи</span><button class="btn" id="gear">⚙ Настройки</button></div>
+</header>
+<main>
+
+<div class="card" id="setp" hidden style="margin-bottom:14px">
+ <h3>Настройки и калибровка</h3>
+ <div class="set">
+  <div><label>K — коэфф. ветра (калибровка)</label><input id="sk" type="number" step="0.05"></div>
+  <div><label>Высота над морем, м</label><input id="sa" type="number" step="1"></div>
+  <div><label>Поправка темп., °C</label><input id="so" type="number" step="0.1"></div>
+  <div><label>Широта</label><input id="sla" type="number" step="0.0001"></div>
+  <div><label>Долгота</label><input id="slo" type="number" step="0.0001"></div>
+ </div>
+ <div style="margin-top:12px"><button class="btn" id="save">💾 Сохранить</button>
+ <button class="btn" id="calco">🧪 Калибровать CO (чистый воздух!)</button>
+ <span class="hint" id="setmsg"></span></div>
+</div>
+
+<section class="grid">
+ <div class="card"><h3>Температура</h3>
+  <div class="big"><span id="t">–</span><small>°C</small></div>
+  <p class="sub" style="margin:12px 0 0">Ощущается как <b id="fl">–</b>° &nbsp;·&nbsp; Точка росы <b id="td">–</b>°</p></div>
+
+ <div class="card"><h3>Влажность</h3>
+  <div class="row"><div class="ringwrap"><svg viewBox="0 0 100 100" class="ring"><circle class="bg" cx="50" cy="50" r="40"/><circle class="fg" id="hring" cx="50" cy="50" r="40"/></svg>
+  <div class="ringtxt"><span id="h">–</span><small>%</small></div></div>
+  <div class="hint" id="hnote" style="flex:1"></div></div></div>
+
+ <div class="card"><h3>Давление (к уровню моря)</h3>
+  <div class="big"><span id="p">–</span><small>гПа</small></div>
+  <p class="sub" style="margin:10px 0 4px"><b id="pm">–</b> мм рт. ст. &nbsp; <span id="trend"></span></p>
+  <div class="hint" id="fc"></div></div>
+
+ <div class="card"><h3>Ветер</h3>
+  <div class="row"><div>
+   <div class="big"><span id="w">–</span><small>м/с</small></div>
+   <p class="sub" style="margin:10px 0 0"><b id="kmh">–</b> км/ч · порыв <b id="g">–</b> · макс <b id="wm">–</b></p>
+   <p class="sub" style="margin:4px 0 0" id="bf"></p></div>
+   <svg viewBox="0 0 100 100" width="96" height="96"><g id="rotor" stroke="#5eead4" stroke-width="3" fill="#5eead4">
+    <line x1="50" y1="50" x2="50" y2="14"/><line x1="50" y1="50" x2="18.8" y2="68"/><line x1="50" y1="50" x2="81.2" y2="68"/>
+    <circle cx="50" cy="12" r="9"/><circle cx="17.5" cy="69" r="9"/><circle cx="82.5" cy="69" r="9"/>
+    <circle cx="50" cy="50" r="5" fill="#0b1020"/></g></svg></div></div>
+
+ <div class="card"><h3>Угарный газ CO</h3>
+  <div class="big"><span id="co">–</span><small>ppm</small></div>
+  <div class="bar"><i id="comark"></i></div>
+  <div class="row"><b id="cost">–</b><span class="hint">0 … 50 ppm</span></div></div>
+
+ <div class="card"><h3>Система</h3>
+  <p class="sub" style="line-height:1.9;margin:0">Аптайм: <b id="up">–</b><br>Сигнал Wi-Fi станции, дБм: <b id="rssi">–</b><br>Ветер «пробежал»: <b id="run">–</b> км<br>RAM свободно: <b id="heap">–</b> КБ</p></div>
+</section>
+
+<h2><span>📈 Графики</span>
+ <span><button class="btn on" data-r="live">30 минут</button> <button class="btn" data-r="day">24 часа</button> <button class="btn" id="csv">⬇ CSV</button></span></h2>
+<section class="grid" id="charts"></section>
+
+<h2><span>🗺 Карта и данные из интернета</span>
+ <span><button class="btn on" id="bmap">Карта</button> <button class="btn" id="brad">Радар осадков</button> <button class="btn" id="bwin">Ветер (Windy)</button></span></h2>
+<section class="two">
+ <div class="card"><div id="map"></div><iframe id="windy"></iframe>
+  <div class="hint" id="mapfail" style="display:none;margin-top:8px">Карта грузится из интернета — у этого устройства его сейчас нет.</div></div>
+ <div class="card"><h3>Моя станция vs Open-Meteo</h3>
+  <div id="cmpbox"><span class="hint" id="cmpNote">Загрузка…</span></div></div>
+</section>
+<section class="grid" style="margin-top:14px"><div class="card" style="grid-column:1/-1"><h3>Прогноз на 24 часа (Open-Meteo)</h3>
+ <canvas id="fcc"></canvas><div class="tip" id="fctip"></div></div></section>
+</main>
+
+<script src="mqtt.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const BF=['Штиль','Тихий','Лёгкий','Слабый','Умеренный','Свежий','Сильный','Крепкий','Очень крепкий','Шторм','Сильный шторм','Жестокий шторм','Ураган'];
+const WC={0:'☀️ Ясно',1:'🌤 Малооблачно',2:'⛅ Облачно',3:'☁️ Пасмурно',45:'🌫 Туман',48:'🌫 Изморозь',51:'🌦 Морось',53:'🌦 Морось',55:'🌦 Морось',61:'🌧 Дождь',63:'🌧 Дождь',65:'🌧 Ливень',71:'🌨 Снег',73:'🌨 Снег',75:'🌨 Сильный снег',80:'🌧 Ливни',81:'🌧 Ливни',82:'⛈ Сильные ливни',95:'⛈ Гроза',96:'⛈ Гроза с градом',99:'⛈ Гроза с градом'};
+const f=(v,d=1)=>(v==null||isNaN(v))?'–':(+v).toFixed(d);
+const J0=async u=>{const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()};
+/* ---------- данные станции приходят по MQTT ---------- */
+const TOPIC='meteo-4edebd2ad3e6',BROKER='wss://broker.hivemq.com:8884/mqtt';
+const MQ={conn:false,now:null,nowAt:0,live:null,day:null,cfg:null,status:'?'};
+const DEFCFG={name:'Метеостанция',lat:43.238,lon:76.945,k:0,r:0,alt:0,toff:0,r0:0};
+function mqStart(){
+ const c=mqtt.connect(BROKER,{reconnectPeriod:2000,connectTimeout:8000,keepalive:20,clean:true,clientId:'web-'+Math.random().toString(16).slice(2,10)});
+ c.on('connect',()=>{MQ.conn=true;c.subscribe([TOPIC+'/now',TOPIC+'/live',TOPIC+'/day',TOPIC+'/cfg',TOPIC+'/status'])});
+ c.on('close',()=>{MQ.conn=false});c.on('offline',()=>{MQ.conn=false});
+ c.on('message',(t,m,pk)=>{
+  const k=t.slice(TOPIC.length+1),txt=m.toString();
+  if(k==='status'){MQ.status=txt;return}
+  let j;try{j=JSON.parse(txt)}catch(e){return}
+  if(k==='now'){MQ.now=j;if(!pk.retain)MQ.nowAt=Date.now()}   /* retain=true -> это «последнее известное», а не живое */
+  else MQ[k]=j;
+ });
+}
+const wait=async(k,ms)=>{const t=Date.now();while(!MQ[k]&&Date.now()-t<ms)await new Promise(r=>setTimeout(r,150));return MQ[k]};
+const J=async u=>{
+ if(u==='/api/now'){if(!MQ.now)throw new Error('нет данных');return MQ.now}
+ if(u.startsWith('/api/hist')){const r=u.endsWith('day')?'day':'live';if(!MQ[r])throw new Error('нет данных');return MQ[r]}
+ if(u==='/api/cfg')return Object.assign({},DEFCFG,await wait('cfg',6000)||{});
+ return J0(u)};
+mqStart();
+let cfg=null,now=null,range='live',hist=null,cmp=null,map=null,marker=null,radar=null;
+
+/* ---------- мини-библиотека графиков (без внешних скриптов) ---------- */
+function draw(cv,ts,ser,hi){
+ const dpr=devicePixelRatio||1,W=cv.clientWidth,Hh=cv.clientHeight;
+ if(cv.width!==Math.round(W*dpr)){cv.width=W*dpr;cv.height=Hh*dpr}
+ const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,Hh);
+ const two=ser.some(s=>s.axis==1),L=40,R=two?40:10,T=8,B=22,w=W-L-R,h=Hh-T-B,n=ts.length;
+ c.font='11px system-ui';
+ if(n<2){c.fillStyle='#8b94b8';c.textBaseline='middle';c.fillText('Копим данные…',L,Hh/2);return}
+ const rg=[0,1].map(a=>{const v=[];ser.filter(s=>s.axis==a).forEach(s=>s.data.forEach(x=>{if(x!=null)v.push(x)}));
+  if(!v.length)return null;let mn=Math.min(...v),mx=Math.max(...v);const mr=a?4:1;
+  if(mx-mn<mr){const m=(mx+mn)/2;mn=m-mr/2;mx=m+mr/2}const p=(mx-mn)*.12;return[mn-p,mx+p]});
+ const t0=ts[0],t1=ts[n-1],X=i=>L+w*(ts[i]-t0)/((t1-t0)||1),Y=(a,v)=>T+h*(1-(v-rg[a][0])/(rg[a][1]-rg[a][0]));
+ c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;c.textBaseline='middle';
+ for(let i=0;i<=4;i++){const y=T+h*i/4;c.beginPath();c.moveTo(L,y);c.lineTo(L+w,y);c.stroke();
+  [0,1].forEach(a=>{if(!rg[a])return;const sp=rg[a][1]-rg[a][0],v=rg[a][1]-sp*i/4;
+   c.fillStyle=a?'#4cc9f0bb':'#8b94b8';c.textAlign=a?'left':'right';c.fillText(v.toFixed(sp<10?1:0),a?L+w+4:L-5,y)})}
+ c.textAlign='center';c.textBaseline='alphabetic';c.fillStyle='#8b94b8';
+ for(let i=0;i<=4;i++){const t=t0+(t1-t0)*i/4,d=new Date(Date.now()+t*1000);
+  c.fillText(d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}),L+w*i/4,Hh-6)}
+ ser.forEach((s,si)=>{if(!rg[s.axis])return;c.beginPath();let st=false;
+  s.data.forEach((v,i)=>{if(v==null){st=false;return}const x=X(i),y=Y(s.axis,v);st?c.lineTo(x,y):c.moveTo(x,y);st=true});
+  c.strokeStyle=s.color;c.lineWidth=2;c.lineJoin='round';c.stroke();
+  if(si==0&&!s.noarea){const g=c.createLinearGradient(0,T,0,T+h);g.addColorStop(0,s.color+'55');g.addColorStop(1,s.color+'00');
+   c.lineTo(X(n-1),T+h);c.lineTo(X(0),T+h);c.closePath();c.fillStyle=g;c.fill()}});
+ if(hi!=null){const x=X(hi);c.strokeStyle='rgba(255,255,255,.4)';c.beginPath();c.moveTo(x,T);c.lineTo(x,T+h);c.stroke();
+  ser.forEach(s=>{const v=s.data[hi];if(v==null||!rg[s.axis])return;c.fillStyle=s.color;c.beginPath();c.arc(x,Y(s.axis,v),4,0,7);c.fill()})}
+ cv._st={ts,ser,L,w,t0,t1};
+}
+function hover(cv,tip){
+ const mv=e=>{const s=cv._st;if(!s)return;const r=cv.getBoundingClientRect(),t=s.t0+(e.clientX-r.left-s.L)/s.w*(s.t1-s.t0);
+  let b=0,bd=1e18;s.ts.forEach((v,i)=>{const d=Math.abs(v-t);if(d<bd){bd=d;b=i}});draw(cv,s.ts,s.ser,b);
+  const d=new Date(Date.now()+s.ts[b]*1000);
+  tip.innerHTML='<b>'+d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})+'</b> &nbsp;'+s.ser.map(x=>'<span style="color:'+x.color+'">'+x.name+' '+f(x.data[b])+' '+x.unit+'</span>').join(' &nbsp;')};
+ cv.addEventListener('pointermove',mv);
+ cv.addEventListener('pointerleave',()=>{const s=cv._st;if(s)draw(cv,s.ts,s.ser);tip.textContent=''});
+}
+const CH=[
+ {id:'c1',t:'Температура и влажность',s:[{k:'temp',c:'#ff7a59',ax:0,u:'°C',n:'Т'},{k:'hum',c:'#4cc9f0',ax:1,u:'%',n:'Влажн.'}]},
+ {id:'c2',t:'Давление',s:[{k:'pres',c:'#b794f6',ax:0,u:'гПа',n:'P'}]},
+ {id:'c3',t:'Скорость ветра',s:[{k:'wind',c:'#5eead4',ax:0,u:'м/с',n:'Ветер'},{k:'gust',c:'#fbbf24',ax:0,u:'м/с',n:'Порыв'}]},
+ {id:'c4',t:'Угарный газ CO',s:[{k:'co',c:'#f87171',ax:0,u:'ppm',n:'CO'}]}];
+$('#charts').innerHTML=CH.map(c=>`<div class="card"><h3>${c.t}</h3><canvas id="${c.id}"></canvas><div class="tip" id="${c.id}t"></div><div class="leg">${c.s.map(s=>`<span><i style="background:${s.c}"></i>${s.n}</span>`).join('')}</div></div>`).join('');
+CH.forEach(c=>hover($('#'+c.id),$('#'+c.id+'t')));
+hover($('#fcc'),$('#fctip'));
+function renderCharts(){if(!hist)return;CH.forEach(c=>draw($('#'+c.id),hist.t,c.s.map(s=>({data:hist[s.k],color:s.c,axis:s.ax,unit:s.u,name:s.n}))))}
+
+/* ---------- живые данные ---------- */
+function fcast(tr){if(tr==null)return'Копим данные о давлении (нужно ~30 мин)…';
+ if(tr>=3.5)return'⬆⬆ Быстрый рост давления: прояснение, возможен ветер';if(tr>=1)return'↗ Давление растёт — погода улучшается';
+ if(tr>-1)return'→ Давление стабильно — без перемен';if(tr>-3.5)return'↘ Давление падает — возможны осадки';return'⬇⬇ Резкое падение — жди шторм или ливень'}
+function render(d){
+ now=d;
+ $('#t').textContent=f(d.t);$('#fl').textContent=f(d.fl);$('#td').textContent=f(d.td);
+ $('#h').textContent=f(d.h,0);const hv=d.h==null?0:d.h;$('#hring').style.strokeDashoffset=251.3*(1-hv/100);
+ $('#hnote').textContent=d.h==null?'Датчик влажности не найден (нужен BME280, а не BMP280)':hv<30?'Сухо':hv<60?'Комфортно':hv<80?'Влажно':'Очень влажно';
+ $('#p').textContent=f(d.p);$('#pm').textContent=f(d.pm,0);
+ $('#trend').textContent=d.tr==null?'':(d.tr>0?'+':'')+d.tr.toFixed(1)+' гПа/3ч';$('#fc').textContent=fcast(d.tr);
+ $('#w').textContent=f(d.w);$('#kmh').textContent=f(d.w*3.6,0);$('#g').textContent=f(d.g);$('#wm').textContent=f(d.wm);
+ $('#bf').textContent='Бофорт '+d.bf+' · '+BF[d.bf];
+ const ro=$('#rotor');if(d.rps>0.03){ro.style.animationDuration=Math.max(.2,1/Math.min(d.rps,5))+'s';ro.style.animationPlayState='running'}else ro.style.animationPlayState='paused';
+ $('#co').textContent=d.warm?'…':f(d.co);$('#comark').style.left=Math.min((d.co||0)/50*100,100)+'%';
+ const cn=['','Норма','Внимание','ОПАСНО!'],cc=['','#34d399','#fbbf24','#f87171'];
+ $('#cost').textContent=d.warm?'Прогрев датчика…':cn[d.cos];$('#cost').style.color=d.warm?'#8b94b8':cc[d.cos];
+ const u=d.up,hh=Math.floor(u/3600),mm=Math.floor(u%3600/60);
+ $('#up').textContent=(hh?hh+' ч ':'')+mm+' мин';$('#rssi').textContent=d.wr==null?'–':d.wr;$('#run').textContent=f(d.run,2);$('#heap').textContent=Math.round(d.heap/1024);
+ document.title=f(d.t)+'° · '+f(d.w)+' м/с — Метеостанция';
+ if(marker)marker.setTooltipContent('<b>'+f(d.t)+'°C</b> · '+f(d.w)+' м/с · '+f(d.p,0)+' гПа');
+ renderCmp();
+}
+function setOnline(){const e=$('#st');let ok=false,t;
+ if(!MQ.conn)t='подключаюсь к интернету…';
+ else if(!MQ.now)t='жду данные станции…';
+ else if(MQ.status==='offline'||Date.now()-MQ.nowAt>20000){t='станция не в сети (последние данные)'}
+ else{ok=true;t='● онлайн'}
+ e.textContent=t;e.className='chip'+(ok?'':' off')}
+async function tickNow(){setOnline();try{render(await J('/api/now'))}catch(e){}}
+async function tickHist(){try{hist=await J('/api/hist?r='+range);renderCharts()}catch(e){}}
+setInterval(()=>{$('#clock').textContent=new Date().toLocaleString('ru',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',second:'2-digit'})},1000);
+document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{range=b.dataset.r;document.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x==b));hist=null;tickHist()});
+$('#csv').onclick=()=>{if(!hist)return;const ks=['temp','hum','pres','wind','gust','co'];let s='time,'+ks.join(',')+'\n';
+ hist.t.forEach((t,i)=>{s+=new Date(Date.now()+t*1000).toISOString()+','+ks.map(k=>hist[k][i]??'').join(',')+'\n'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/csv'}));a.download='meteo_'+range+'.csv';a.click()};
+
+/* ---------- настройки ---------- */
+$('#gear').onclick=()=>{const p=$('#setp');p.hidden=!p.hidden;if(cfg){$('#sk').value=cfg.k;$('#sa').value=cfg.alt;$('#so').value=cfg.toff;$('#sla').value=cfg.lat;$('#slo').value=cfg.lon}};
+$('#save').onclick=async()=>{try{const q=new URLSearchParams({k:$('#sk').value,alt:$('#sa').value,toff:$('#so').value,lat:$('#sla').value,lon:$('#slo').value});
+ await J('/api/set?'+q);cfg=await J('/api/cfg');$('#setmsg').textContent=' сохранено ✔';if(map)map.setView([cfg.lat,cfg.lon]);loadCmp()}catch(e){$('#setmsg').textContent=' ошибка'}};
+$('#calco').onclick=async()=>{if(!confirm('Датчик CO должен быть прогрет 10+ минут и находиться на чистом воздухе. Калибровать?'))return;
+ try{await J('/api/calco');$('#setmsg').textContent=' CO откалиброван ✔'}catch(e){$('#setmsg').textContent=' ошибка'}};
+
+/* ---------- интернет: Open-Meteo ---------- */
+async function loadCmp(){
+ if(!cfg)return;
+ try{
+  const la=cfg.lat,lo=cfg.lon;
+  const a=await J(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_gusts_10m,wind_direction_10m,weather_code&hourly=temperature_2m,precipitation_probability&forecast_hours=24&wind_speed_unit=ms&timezone=auto`);
+  let b=null;try{b=await J(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${la}&longitude=${lo}&current=us_aqi,pm2_5,carbon_monoxide`)}catch(e){}
+  cmp={a,b};renderCmp();renderFc();
+ }catch(e){$('#cmpbox').innerHTML='<span class="hint">Нет интернета у браузера — внешние данные недоступны. Станция продолжает работать автономно.</span>'}
+}
+function dl(m,o,d,dec=1){if(m==null)return'<td>–</td><td>–</td><td>–</td>';const dd=o==null?null:o-m;
+ return`<td><b>${f(m,dec)}</b></td><td>${f(o,dec)}</td><td class="${dd!=null&&Math.abs(dd)>(dec?2:5)?'pos':'ok'}">${dd==null?'–':(dd>0?'+':'')+dd.toFixed(dec)}</td>`}
+function renderCmp(){
+ if(!cmp||!now)return;const c=cmp.a.current,d=now,dirs=['С','СВ','В','ЮВ','Ю','ЮЗ','З','СЗ'],dr=dirs[Math.round(c.wind_direction_10m/45)%8];
+ let h=`<p style="margin:0 0 8px;font-size:15px">${WC[c.weather_code]||'—'} <span class="sub">по модели</span></p><table><tr><th></th><th>Моя</th><th>Модель</th><th>Δ</th></tr>`;
+ h+=`<tr><td>Температура °C</td>${dl(d.t,c.temperature_2m)}</tr>`;
+ h+=`<tr><td>Влажность %</td>${dl(d.h,c.relative_humidity_2m,0,0)}</tr>`;
+ h+=`<tr><td>Давление гПа</td>${dl(d.p,c.pressure_msl)}</tr>`;
+ h+=`<tr><td>Ветер м/с</td>${dl(d.w,c.wind_speed_10m)}</tr></table>`;
+ h+=`<p class="sub" style="margin:10px 0 0">Направление ветра (модель): <b style="display:inline-block;transform:rotate(${c.wind_direction_10m+180}deg)">↑</b> <b>${dr}</b>, порывы до <b>${f(c.wind_gusts_10m)}</b> м/с</p>`;
+ if(cmp.b&&cmp.b.current){const q=cmp.b.current;h+=`<p class="sub" style="margin:6px 0 0">Воздух (модель): AQI <b>${f(q.us_aqi,0)}</b> · PM2.5 <b>${f(q.pm2_5,0)}</b> мкг/м³ · CO <b>${f(q.carbon_monoxide,0)}</b> мкг/м³</p>`}
+ h+=`<p class="hint" style="margin-top:10px">Модель — сетка ~10 км, не точка у тебя на балконе. Небольшие расхождения это норма.</p>`;
+ $('#cmpbox').innerHTML=h;
+}
+function renderFc(){
+ if(!cmp)return;const hr=cmp.a.hourly,ts=hr.time.map(t=>(new Date(t)-Date.now())/1000);
+ draw($('#fcc'),ts,[{data:hr.temperature_2m,color:'#ff7a59',axis:0,unit:'°C',name:'Т'},{data:hr.precipitation_probability,color:'#4cc9f0',axis:1,unit:'% осадков',name:'Осадки',noarea:true}]);
+}
+addEventListener('resize',()=>{renderCharts();renderFc()});
+
+/* ---------- карта ---------- */
+const ls=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+async function initMap(){
+ try{
+  const l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(l);
+  await ls('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
+  map=L.map('map').setView([cfg.lat,cfg.lon],8);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'© OpenStreetMap, © CARTO'}).addTo(map);
+  marker=L.marker([cfg.lat,cfg.lon],{icon:L.divIcon({className:'',html:'<div class="pin"></div>',iconSize:[18,18]})}).addTo(map).bindTooltip('Моя станция',{permanent:true,direction:'top',offset:[0,-10]});
+ }catch(e){$('#map').style.display='none';$('#mapfail').style.display='block'}
+}
+$('#bmap').onclick=()=>{$('#map').style.display='block';$('#windy').style.display='none';$('#bmap').classList.add('on');$('#bwin').classList.remove('on');if(map)map.invalidateSize()};
+$('#bwin').onclick=()=>{const w=$('#windy');if(!w.src)w.src=`https://embed.windy.com/embed2.html?lat=${cfg.lat}&lon=${cfg.lon}&zoom=7&level=surface&overlay=wind&product=ecmwf&type=map&location=coordinates&metricWind=m%2Fs&metricTemp=%C2%B0C&marker=true`;
+ w.style.display='block';$('#map').style.display='none';$('#bwin').classList.add('on');$('#bmap').classList.remove('on')};
+$('#brad').onclick=async()=>{if(!map)return;$('#bmap').click();
+ if(radar){map.removeLayer(radar);radar=null;$('#brad').classList.remove('on');return}
+ try{const j=await J('https://api.rainviewer.com/public/weather-maps.json'),p=j.radar.past,la=p[p.length-1];
+  radar=L.tileLayer(`${j.host}${la.path}/256/{z}/{x}/{y}/2/1_1.png`,{opacity:.65,maxNativeZoom:7,maxZoom:18}).addTo(map);$('#brad').classList.add('on')}catch(e){alert('Радар недоступен')}};
+
+/* ---------- старт ---------- */
+(async()=>{
+ try{cfg=await J('/api/cfg');$('#name').textContent=cfg.name}catch(e){}
+ tickNow();tickHist();setInterval(tickNow,2000);setInterval(tickHist,10000);
+ if(cfg){initMap();loadCmp();setInterval(loadCmp,600000)}
+})();
+</script></body></html>
